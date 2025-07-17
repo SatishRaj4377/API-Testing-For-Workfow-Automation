@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <h1>Gmail Sender Sample</h1>
+    <button id="signin" onclick="window.location='/auth/google'">Sign in with Google</button>
+    <button id="signout" onclick="window.location='/logout'" style="display:none;">Sign out</button>
+    <div id="main" style="display:none;">
+      <input type="email" id="to" placeholder="Recipient Email" style="width:250px;"><br>
+      <input type="text" id="subject" placeholder="Subject" style="width:250px;"><br>
+      <textarea id="message" placeholder="Your message" style="width:250px;height:80px;"></textarea><br>
+      <button onclick="sendMail()">Send Mail</button>
+      <div id="result" style="margin-top:15px;"></div>
+    </div>
+    <script>
+      function checkAuth() {
+        fetch('/mail/checkauth').then(resp => {
+          if (resp.status !== 401) {
+            document.getElementById('signin').style.display = 'none';
+            document.getElementById('main').style.display = '';
+            document.getElementById('signout').style.display = '';
+          } else {
+            document.getElementById('signin').style.display = '';
+            document.getElementById('main').style.display = 'none';
+            document.getElementById('signout').style.display = 'none';
+          }
+        });
+      }
+      function sendMail() {
+        var to = document.getElementById('to').value.trim();
+        var subject = document.getElementById('subject').value.trim();
+        var message = document.getElementById('message').value.trim();
+        var result = document.getElementById('result');
+        result.innerHTML = '';
+        if(!to || !subject || !message) {
+          result.innerHTML = "Please fill in all fields.";
+          return;
+        }
+        fetch('/mail/send', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({to, subject, message})
+        })
+        .then(r => {
+          if(!r.ok) return r.text().then(t => {throw new Error(t);});
+          return r.json();
+        })
+        .then(data => {
+          result.innerHTML = '<span style="color:green;">' + data.message + '</span>';
+        })
+        .catch(e => {
+          result.innerHTML = '<span style="color:red;">Error: ' + (e.message || 'Send failed.') + '</span>';
+        });
+      }
+      checkAuth();
+    </script>
+  </body>
+</html>

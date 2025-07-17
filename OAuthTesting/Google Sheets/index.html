@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <h1>Google Sheets Name Fetcher</h1>
+    <button id="signin" onclick="window.location='/auth/google'">Sign in with Google</button>
+    <button id="signout" onclick="window.location='/logout'" style="display:none;">Sign out</button>
+    <div id="main" style="display:none;">
+      <input type="text" id="sheetid" placeholder="Enter Spreadsheet ID" style="width:300px;">
+      <button onclick="fetchSheetName()">Get Sheet Name</button>
+      <div id="result" style="margin-top:15px;"></div>
+    </div>
+    <script>
+      function checkAuth() {
+        fetch('/sheetname?id=INVALID_TEST_ID').then(resp => {
+          if (resp.status !== 401) {
+            document.getElementById('signin').style.display = 'none';
+            document.getElementById('main').style.display = '';
+            document.getElementById('signout').style.display = '';
+          } else {
+            document.getElementById('signin').style.display = '';
+            document.getElementById('main').style.display = 'none';
+            document.getElementById('signout').style.display = 'none';
+          }
+        });
+      }
+      function fetchSheetName() {
+        var id = document.getElementById('sheetid').value.trim();
+        var result = document.getElementById('result');
+        result.innerHTML = '';
+        if(!id) {
+          result.innerHTML = "Please enter a spreadsheet ID.";
+          return;
+        }
+        fetch('/sheetname?id=' + encodeURIComponent(id))
+          .then(r => {
+            if(!r.ok) return r.text().then(t => {throw new Error(t);});
+            return r.json();
+          })
+          .then(data => {
+            result.innerHTML = '<b>Sheet Name:</b> ' + data.title;
+          })
+          .catch(e => {
+            result.innerHTML = '<span style="color:red;">Error: ' + (e.message || 'Fetch failed.') + '</span>';
+          });
+      }
+      checkAuth();
+    </script>
+  </body>
+</html>

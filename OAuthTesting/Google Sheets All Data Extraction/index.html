@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <h1>Google Sheets Tester</h1>
+  <button id="signin" onclick="window.location='/auth/google'">Sign in with Google</button>
+  <button id="signout" onclick="window.location='/logout'" style="display:none;">Sign out</button>
+  <div id="main" style="display:none;">
+    <button id="listSpreadsheets" onclick="fetchSpreadsheets()">List Available Spreadsheets</button>
+    <div id="spreadsheetsDiv" style="margin:10px 0;"></div>
+    <div id="sheetSelectDiv" style="margin:10px 0;"></div>
+    <div id="headersDiv" style="margin:10px 0;"></div>
+    <div id="dataDiv" style="margin:10px 0;"></div>
+    <div id="headerEditDiv" style="display:none;">
+      <h4>Edit Header Row</h4>
+      <form id="headerEditForm">
+        <div id="headerInputs"></div>
+        <button type="submit">Update Header</button>
+      </form>
+      <div id="headerEditMsg"></div>
+    </div>
+  </div>
+  <script>
+    let spreadsheetsList = [];
+    let selectedSpreadsheetId = null;
+    let selectedSheetName = null;
+    let currentHeaders = [];
+
+    function closeHeaderEdit() {
+      document.getElementById('headerEditDiv').style.display = 'none';
+      document.getElementById('headerEditMsg').innerText = '';
+    }
+
+    function showHeaderEditor(headers, spreadsheetId, sheetName) {
+      selectedSpreadsheetId = spreadsheetId;
+      selectedSheetName = sheetName;
+      const container = document.getElementById('headerInputs');
+      container.innerHTML = '';
+      headers.forEach((header, i) => {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = header;
+        input.name = `header${i}`;
+        input.size = 18;
+        input.style.margin = '2px';
+        container.appendChild(input);
+      });
+      document.getElementById('headerEditDiv').style.display = '';
+      document.getElementById('headerEditMsg').innerText = '';
+    }
+
+    document.getElementById('headerEditForm').onsubmit = function (e) {
+      e.preventDefault();
+      const inputs = Array.from(document.querySelectorAll('#headerInputs input'));
+      const newHeaders = inputs.map(input => input.value);
+      fetch('/updateheader', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedSpreadsheetId, sheet: selectedSheetName, headers: newHeaders })
+      })
+        .then(r => r.ok ? r.json() : r.text().then(t => Promise.reject(t)))
+        .then(() => {
+          document.getElementById('headerEditMsg').innerText = 'Header updated!';
+          // Refresh displayed headers after update
+          fetchHeaders(selectedSpreadsheetId, selectedSheetName, true);
+        })
+        .catch(err => {
+          document.getElementById('headerEditMsg').innerText = 'Error: ' + err;
+        });
+    };
+
+    function fetchHeaders(spreadsheetId, sheetName, doNotCloseEdit) {
+      document.getElementById('headersDiv').innerHTML = 'Loading column headers...';
+      fetch(`/headers?id=${encodeURIComponent(spreadsheetId)}&sheet=${encodeURIComponent(sheetName)}`)
+        .then(r => r.json())
+        .then(headers => {
+          currentHeaders = headers;
+          let htm = '<b>Column Headers:</b> ' +
+            (headers.length ? headers.join(', ') : '(none)');
+          htm += ` <button onclick="showHeaderEditor(currentHeaders, selectedSpreadsheetId, selectedSheetName)">Edit header</button>`;
+          htm += `<br><button onclick="loadRows()">Load Sheet Data</button>`;
+          document.getElementById('headersDiv').innerHTML = htm;
+          if (!doNotCloseEdit) closeHeaderEdit();
+        })
+        .catch(e => {
+          document.getElementById('headersDiv').innerHTML = `<span style="color:red;">Error: ${e.message}</span>`;
+          closeHeaderEdit();
+        });
+    }
+
+    function checkAuth() {
+      fetch('/sheetname?id=INVALID_TEST_ID').then(resp => {
+        if (resp.status !== 401) {
+          document.getElementById('signin').style.display = 'none';
+          document.getElementById('main').style.display = '';
+          document.getElementById('signout').style.display = '';
+        } else {
+          document.getElementById('signin').style.display = '';
+          document.getElementById('main').style.display = 'none';
+          document.getElementById('signout').style.display = 'none';
+        }
+      });
+    }
+
+    function fetchSpreadsheets() {
+      closeHeaderEdit();
+      document.getElementById('spreadsheetsDiv').innerHTML = 'Loading...';
+      fetch('/spreadsheets')
+        .then(r => {
+          if (!r.ok) return r.text().then(t => { throw new Error(t); });
+          return r.json();
+        })
+        .then(files => {
+          spreadsheetsList = files;
+          if (!files.length) {
+            document.getElementById('spreadsheetsDiv').innerHTML = '<span style="color:red;">No spreadsheets found!</span>';
+            document.getElementById('sheetSelectDiv').innerHTML = '';
+            document.getElementById('headersDiv').innerHTML = '';
+            document.getElementById('dataDiv').innerHTML = '';
+            closeHeaderEdit();
+            return;
+          }
+          let html = '<label>Select Spreadsheet: <select id="spreadsheetSelect">';
+          for (let s of files) {
+            html += `<option value="${s.id}">${s.name}</option>`;
+          }
+          html += '</select></label> <button onclick="selectSpreadsheet()">Choose</button>';
+          document.getElementById('spreadsheetsDiv').innerHTML = html;
+          document.getElementById('sheetSelectDiv').innerHTML = '';
+          document.getElementById('headersDiv').innerHTML = '';
+          document.getElementById('dataDiv').innerHTML = '';
+          closeHeaderEdit();
+        })
+        .catch(e => {
+          document.getElementById('spreadsheetsDiv').innerHTML = `<span style="color:red;">Error: ${e.message}</span>`;
+          closeHeaderEdit();
+        });
+    }
+
+    function selectSpreadsheet() {
+      const select = document.getElementById('spreadsheetSelect');
+      selectedSpreadsheetId = select.value;
+      document.getElementById('sheetSelectDiv').innerHTML = 'Loading sheets...';
+      fetch(`/sheets?id=${encodeURIComponent(selectedSpreadsheetId)}`)
+        .then(r => r.json())
+        .then(sheets => {
+          if (!sheets.length) {
+            document.getElementById('sheetSelectDiv').innerHTML = '<span style="color:red;">No sheets/tabs found!</span>';
+            document.getElementById('headersDiv').innerHTML = '';
+            document.getElementById('dataDiv').innerHTML = '';
+            closeHeaderEdit();
+            return;
+          }
+          let html = '<label>Select Sheet (Tab): <select id="sheetTabSelect">';
+          for (let sh of sheets) {
+            html += `<option value="${sh}">${sh}</option>`;
+          }
+          html += '</select></label> <button onclick="selectSheetTab()">Choose</button>';
+          document.getElementById('sheetSelectDiv').innerHTML = html;
+          document.getElementById('headersDiv').innerHTML = '';
+          document.getElementById('dataDiv').innerHTML = '';
+          closeHeaderEdit();
+        })
+        .catch(e => {
+          document.getElementById('sheetSelectDiv').innerHTML = `<span style="color:red;">Error: ${e.message}</span>`;
+          closeHeaderEdit();
+        });
+    }
+
+    function selectSheetTab() {
+      const select = document.getElementById('sheetTabSelect');
+      selectedSheetName = select.value;
+      fetchHeaders(selectedSpreadsheetId, selectedSheetName);
+      document.getElementById('dataDiv').innerHTML = '';
+    }
+
+    function loadRows() {
+      document.getElementById('dataDiv').innerHTML = 'Loading sheet data...';
+      fetch(`/sheetdata?id=${encodeURIComponent(selectedSpreadsheetId)}&sheet=${encodeURIComponent(selectedSheetName)}`)
+        .then(r => r.json())
+        .then(rows => {
+          if (!rows.length) {
+            document.getElementById('dataDiv').innerHTML = 'No rows found.';
+            return;
+          }
+          let html = '<table border="1" cellpadding="4" style="border-collapse:collapse;">';
+          html += '<tr>';
+          for (let col of rows[0]) html += `<th>${col}</th>`;
+          html += '</tr>';
+          for (let i = 1; i < rows.length; ++i) {
+            html += '<tr>';
+            for (let v of rows[i]) html += `<td>${v}</td>`;
+            html += '</tr>';
+          }
+          html += '</table>';
+          document.getElementById('dataDiv').innerHTML = html;
+        })
+        .catch(e => {
+          document.getElementById('dataDiv').innerHTML = `<span style="color:red;">Error: ${e.message}</span>`;
+        });
+    }
+
+    checkAuth();
+  </script>
+</body>
+</html>
