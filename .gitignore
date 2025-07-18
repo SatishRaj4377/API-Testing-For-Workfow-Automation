@@ -2,3 +2,5 @@ OAuthTesting/Gmail Send/.env
 Twilio Message Testing/.env
 OAuthTesting/Google Sheets/.env
 OAuthTesting/Google Sheets All Data Extraction/.env
+/OAuthTesting/Gmail Send/node_modules
+/OAuthTesting/Google Sheets All Data Extraction/node_modules

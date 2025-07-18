@@ -201,5 +201,14 @@
 
     checkAuth();
   </script>
+  <script src="/socket.io/socket.io.js"></script>
+<script>
+  // Connect via Socket.IO when the page is loaded
+  const socket = io();
+  socket.on('webhookSuccess', function (editData) {
+      console.log('Received webhook data:', editData);
+    alert('Webhook triggered successfully! Data: ' + JSON.stringify(editData));
+  });
+</script>
 </body>
 </html>

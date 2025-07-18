@@ -3,12 +3,14 @@ const request = require('request');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 require('dotenv').config();
-
 const app = express();
 app.use(cookieParser());
-
 const bodyParser = require('body-parser');
 app.use(bodyParser.json());
+const http = require('http').createServer(app); // <-- FIXED: define http server
+const io = require('socket.io')(http); // Use this http server for Socket.IO
+
+
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -187,9 +189,18 @@ app.post('/updateheader', (req, res) => {
   });
 });
 
+app.post('/webhook-test', (req, res) => {
+  const editData = req.body;
+  io.emit('webhookSuccess', editData);
+  res.status(200).json({received: true});
+});
+
+// Command Prompt WebHook Trigger 
+// curl -X POST http://localhost:3000/webhook-test -H "Content-Type: application/json" -d "{\"message\": \"hello\"}"
+
 app.get('/logout', (_, res) => {
   res.clearCookie('access_token');
   res.redirect('/');
 });
 
-app.listen(3000, () => console.log('Listening at http://localhost:3000'));
+http.listen(3000, () => console.log('Listening at http://localhost:3000'));
